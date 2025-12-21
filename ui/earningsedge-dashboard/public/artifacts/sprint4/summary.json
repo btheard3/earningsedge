@@ -1,0 +1,30 @@
+[
+  {
+    "policy":"buy_hold",
+    "mean_final_equity":1.0855196849,
+    "median_final_equity":1.123018632,
+    "mean_max_drawdown":0.2769963629,
+    "n":50.0
+  },
+  {
+    "policy":"avoid_earnings",
+    "mean_final_equity":1.046523342,
+    "median_final_equity":1.0492127094,
+    "mean_max_drawdown":0.2549475457,
+    "n":50.0
+  },
+  {
+    "policy":"ppo",
+    "mean_final_equity":1.0393454996,
+    "median_final_equity":1.0673436546,
+    "mean_max_drawdown":0.2473608038,
+    "n":50.0
+  },
+  {
+    "policy":"flat",
+    "mean_final_equity":1.0,
+    "median_final_equity":1.0,
+    "mean_max_drawdown":0.0,
+    "n":50.0
+  }
+]

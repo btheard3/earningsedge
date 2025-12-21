@@ -1,0 +1,195 @@
+import { useEffect, useMemo, useState } from "react";
+import { loadCSV } from "../utils/data";
+import KpiCard from "../components/KpiCard";
+
+type SummaryRow = {
+  policy: string;
+  n_episodes: number;
+  mean_final_equity: number;
+  median_final_equity: number;
+  mean_max_drawdown: number;
+  median_max_drawdown: number;
+};
+
+const SUMMARY_CSV = "/artifacts/sprint4/summary_table.csv";
+
+function fmt(x: unknown, digits = 4) {
+  if (x === null || x === undefined) return "—";
+  const n = typeof x === "number" ? x : Number(x);
+  if (!Number.isFinite(n)) return "—";
+  return n.toFixed(digits);
+}
+
+export default function PpoVsBaselines() {
+  const [rows, setRows] = useState<SummaryRow[]>([]);
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      try {
+        setLoading(true);
+        setErr(null);
+
+        const data = await loadCSV<any>(SUMMARY_CSV);
+
+        // Coerce numeric fields in case PapaParse returns strings
+        const cleaned: SummaryRow[] = (data ?? []).map((r: any) => ({
+          policy: String(r.policy),
+          n_episodes: Number(r.n_episodes),
+          mean_final_equity: Number(r.mean_final_equity),
+          median_final_equity: Number(r.median_final_equity),
+          mean_max_drawdown: Number(r.mean_max_drawdown),
+          median_max_drawdown: Number(r.median_max_drawdown),
+        }));
+
+        if (alive) setRows(cleaned);
+      } catch (e: any) {
+        if (alive) setErr(e?.message ?? "Failed to load summary CSV");
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const sorted = useMemo(() => {
+    // Match your CSV exactly: avoid_earnings (not avoid_earn)
+    const order = ["ppo", "buy_hold", "avoid_earnings", "flat"];
+    return [...rows].sort((a, b) => {
+      const ai = order.indexOf(a.policy);
+      const bi = order.indexOf(b.policy);
+      // unknown policies go to bottom
+      return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+    });
+  }, [rows]);
+
+  const kpis = useMemo(() => {
+    if (!rows.length) return null;
+
+    const by = (key: keyof SummaryRow, dir: "max" | "min") => {
+      const sortedRows = [...rows].sort((a, b) => {
+        const av = Number(a[key]);
+        const bv = Number(b[key]);
+        if (!Number.isFinite(av) && !Number.isFinite(bv)) return 0;
+        if (!Number.isFinite(av)) return 1;
+        if (!Number.isFinite(bv)) return -1;
+        return dir === "max" ? bv - av : av - bv;
+      });
+      return sortedRows[0];
+    };
+
+    return {
+      bestMeanFinal: by("mean_final_equity", "max"),
+      bestMedianFinal: by("median_final_equity", "max"),
+      lowestMeanDD: by("mean_max_drawdown", "min"),
+      lowestMedianDD: by("median_max_drawdown", "min"),
+    };
+  }, [rows]);
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-5">
+        <div className="text-sm text-slate-300">PPO vs Baselines</div>
+        <div className="text-xs text-slate-400 mt-1">
+          Loaded from <span className="font-mono">{SUMMARY_CSV}</span>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-5">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-slate-200">
+            Aggregate performance summary
+          </h2>
+          <a
+            className="text-xs text-slate-400 hover:text-slate-200 underline"
+            href={SUMMARY_CSV}
+          >
+            download CSV
+          </a>
+        </div>
+
+        {loading && <div className="mt-4 text-sm text-slate-400">Loading…</div>}
+
+        {err && (
+          <div className="mt-4 text-sm text-red-300">Could not load: {err}</div>
+        )}
+
+        {!loading && !err && (
+          <>
+            {/* KPI cards */}
+            {kpis && (
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                <KpiCard
+                  title="Best Mean Final Equity"
+                  policy={kpis.bestMeanFinal.policy}
+                  value={kpis.bestMeanFinal.mean_final_equity}
+                />
+                <KpiCard
+                  title="Best Median Final Equity"
+                  policy={kpis.bestMedianFinal.policy}
+                  value={kpis.bestMedianFinal.median_final_equity}
+                />
+                <KpiCard
+                  title="Lowest Mean Max Drawdown"
+                  policy={kpis.lowestMeanDD.policy}
+                  value={kpis.lowestMeanDD.mean_max_drawdown}
+                  inverse
+                />
+                <KpiCard
+                  title="Lowest Median Max Drawdown"
+                  policy={kpis.lowestMedianDD.policy}
+                  value={kpis.lowestMedianDD.median_max_drawdown}
+                  inverse
+                />
+              </div>
+            )}
+
+            {/* Table */}
+            <div className="mt-4 overflow-x-auto rounded-xl border border-slate-800">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-900/60 text-slate-300">
+                  <tr>
+                    <th className="px-3 py-2 text-left">policy</th>
+                    <th className="px-3 py-2 text-right">n_episodes</th>
+                    <th className="px-3 py-2 text-right">mean_final</th>
+                    <th className="px-3 py-2 text-right">median_final</th>
+                    <th className="px-3 py-2 text-right">mean_max_dd</th>
+                    <th className="px-3 py-2 text-right">median_max_dd</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sorted.map((r) => (
+                    <tr key={r.policy} className="border-t border-slate-800">
+                      <td className="px-3 py-2 text-slate-200">{r.policy}</td>
+                      <td className="px-3 py-2 text-right text-slate-300">
+                        {Number.isFinite(r.n_episodes) ? r.n_episodes : "—"}
+                      </td>
+                      <td className="px-3 py-2 text-right text-slate-300">
+                        {fmt(r.mean_final_equity)}
+                      </td>
+                      <td className="px-3 py-2 text-right text-slate-300">
+                        {fmt(r.median_final_equity)}
+                      </td>
+                      <td className="px-3 py-2 text-right text-slate-300">
+                        {fmt(r.mean_max_drawdown)}
+                      </td>
+                      <td className="px-3 py-2 text-right text-slate-300">
+                        {fmt(r.median_max_drawdown)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
