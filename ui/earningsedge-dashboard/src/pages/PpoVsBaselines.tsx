@@ -92,6 +92,22 @@ export default function PpoVsBaselines() {
     };
   }, [rows]);
 
+  const deltas = useMemo(() => {
+  if (!rows.length) return null;
+
+  const ppo = rows.find(r => r.policy === "ppo");
+  const bh = rows.find(r => r.policy === "buy_hold");
+  if (!ppo || !bh) return null;
+
+  return {
+    deltaMeanFinal: ppo.mean_final_equity - bh.mean_final_equity,
+    deltaMedianFinal: ppo.median_final_equity - bh.median_final_equity,
+    deltaMeanDD: ppo.mean_max_drawdown - bh.mean_max_drawdown,         // negative = PPO lower DD (good)
+    deltaMedianDD: ppo.median_max_drawdown - bh.median_max_drawdown,   // negative = PPO lower DD (good)
+  };
+}, [rows]);
+
+
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-5">
@@ -150,6 +166,22 @@ export default function PpoVsBaselines() {
               </div>
             )}
 
+            {/* Delta cards */}
+            {deltas && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <DeltaCard
+                  title="PPO vs Buy&Hold (Mean Final Equity)"
+                  value={deltas.deltaMeanFinal}
+                  goodWhen="positive"
+                />
+                <DeltaCard
+                  title="PPO vs Buy&Hold (Mean Max Drawdown)"
+                  value={deltas.deltaMeanDD}
+                  goodWhen="negative"
+                />
+              </div>
+            )}
+
             {/* Table */}
             <div className="mt-4 overflow-x-auto rounded-xl border border-slate-800">
               <table className="w-full text-sm">
@@ -189,6 +221,37 @@ export default function PpoVsBaselines() {
             </div>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+function DeltaCard({
+  title,
+  value,
+  goodWhen,
+}: {
+  title: string;
+  value: number;
+  goodWhen: "positive" | "negative";
+}) {
+  const isGood = goodWhen === "positive" ? value >= 0 : value <= 0;
+
+  return (
+    <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+      <div className="text-xs text-slate-400">{title}</div>
+      <div className="mt-2 flex items-baseline gap-2">
+        <div className="text-2xl font-semibold text-slate-100">
+          {value >= 0 ? "+" : ""}
+          {value.toFixed(4)}
+        </div>
+        <div className={`text-xs ${isGood ? "text-emerald-300" : "text-rose-300"}`}>
+          {isGood ? "favorable" : "unfavorable"}
+        </div>
+      </div>
+      <div className="mt-1 text-[11px] text-slate-500">
+        {goodWhen === "positive"
+          ? "Positive means PPO beats Buy&Hold."
+          : "Negative means PPO has lower drawdown (better)."}
       </div>
     </div>
   );
