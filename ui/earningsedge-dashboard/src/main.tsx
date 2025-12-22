@@ -1,13 +1,13 @@
-import React from "react"
-import ReactDOM from "react-dom/client"
-import { createBrowserRouter, RouterProvider } from "react-router-dom"
-import "./index.css"
+import React from "react";
+import ReactDOM from "react-dom/client";
+import { createBrowserRouter, RouterProvider } from "react-router-dom";
+import "./index.css";
 
-import AppShell from "./app/AppShell"
-import Overview from "./pages/Overview"
-import PpoVsBaselines from "./pages/PpoVsBaselines"
-import ErrorAnalysis from "./pages/ErrorAnalysis"
-import Experiments from "./pages/Experiments"
+import AppShell from "./app/AppShell";
+import Overview from "./pages/Overview";
+import PpoVsBaselines from "./pages/PpoVsBaselines";
+import ErrorAnalysis from "./pages/ErrorAnalysis";
+import Experiments from "./pages/Experiments";
 
 const router = createBrowserRouter([
   {
@@ -20,10 +20,11 @@ const router = createBrowserRouter([
       { path: "experiments", element: <Experiments /> },
     ],
   },
-])
+]);
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <RouterProvider router={router} />
   </React.StrictMode>
-)
+);
+
