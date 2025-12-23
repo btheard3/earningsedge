@@ -4,34 +4,30 @@ import KpiCard from "../components/KpiCard";
 
 type Row = {
   symbol: string;
-  n_pairs: number; // total evaluated pairs for this symbol
+  n_pairs: number;
   fail_rate: number; // 0..1
+  failures?: number; // <-- prefer integer if present
+  reason?: string;
 
   mean_delta_eq_vs_buyhold: number;
   mean_dd_improve_vs_buyhold: number;
-
   mean_delta_eq_vs_avoid: number;
   mean_dd_improve_vs_avoid: number;
 };
 
-type EnrichedRow = Row & {
-  total: number;     // alias of n_pairs
-  failures: number;  // round(fail_rate * total)
-};
-
 const CSV_PATH = "/artifacts/sprint4/symbol_failure_summary.csv";
 
-function toNum(x: unknown): number {
+function toNum(x: unknown) {
   const n = typeof x === "number" ? x : Number(x);
   return Number.isFinite(n) ? n : NaN;
 }
 
-function pct01(x: number, digits = 2): string {
+function pct(x: number, digits = 2) {
   if (!Number.isFinite(x)) return "—";
   return `${(x * 100).toFixed(digits)}%`;
 }
 
-function fmt(x: number, digits = 4): string {
+function fmt(x: number, digits = 4) {
   if (!Number.isFinite(x)) return "—";
   return x.toFixed(digits);
 }
@@ -54,8 +50,6 @@ export default function ErrorAnalysis() {
         setLoading(true);
         setErr(null);
 
-        // PapaParse with dynamicTyping may already coerce numbers,
-        // but we force conversion so this is stable.
         const raw = await loadCSV<any>(CSV_PATH);
 
         const cleaned: Row[] = (raw ?? [])
@@ -63,14 +57,15 @@ export default function ErrorAnalysis() {
             symbol: String(r.symbol ?? "").trim(),
             n_pairs: toNum(r.n_pairs),
             fail_rate: toNum(r.fail_rate),
+            failures: r.failures !== undefined ? toNum(r.failures) : undefined,
+            reason: r.reason ? String(r.reason) : "",
 
             mean_delta_eq_vs_buyhold: toNum(r.mean_delta_eq_vs_buyhold),
             mean_dd_improve_vs_buyhold: toNum(r.mean_dd_improve_vs_buyhold),
-
             mean_delta_eq_vs_avoid: toNum(r.mean_delta_eq_vs_avoid),
             mean_dd_improve_vs_avoid: toNum(r.mean_dd_improve_vs_avoid),
           }))
-          .filter((r: Row) => r.symbol.length > 0);
+          .filter((r) => r.symbol);
 
         if (alive) setRows(cleaned);
       } catch (e: any) {
@@ -85,27 +80,30 @@ export default function ErrorAnalysis() {
     };
   }, []);
 
-  const enriched: EnrichedRow[] = useMemo(() => {
+  const enriched = useMemo(() => {
     return rows.map((r) => {
       const total = Number.isFinite(r.n_pairs) ? r.n_pairs : NaN;
       const fr = Number.isFinite(r.fail_rate) ? r.fail_rate : NaN;
 
+      // Prefer integer failures if provided by notebook.
       const failures =
-        Number.isFinite(total) && Number.isFinite(fr)
-          ? Math.round(fr * total)
-          : NaN;
+        r.failures !== undefined && Number.isFinite(r.failures)
+          ? Math.round(r.failures)
+          : Number.isFinite(total) && Number.isFinite(fr)
+            ? Math.round(fr * total)
+            : NaN;
 
       return { ...r, total, failures };
     });
   }, [rows]);
 
-  const filtered: EnrichedRow[] = useMemo(() => {
+  const filtered = useMemo(() => {
     const q = query.trim().toUpperCase();
     const base = q
       ? enriched.filter((r) => r.symbol.toUpperCase().includes(q))
       : enriched;
 
-    const sortedRows = [...base].sort((a, b) => {
+    const sorted = [...base].sort((a, b) => {
       if (sort === "symbol_asc") return a.symbol.localeCompare(b.symbol);
 
       if (sort === "fail_rate_desc") {
@@ -120,7 +118,7 @@ export default function ErrorAnalysis() {
       return bf - af;
     });
 
-    return sortedRows;
+    return sorted;
   }, [enriched, query, sort]);
 
   const kpis = useMemo(() => {
@@ -136,7 +134,6 @@ export default function ErrorAnalysis() {
       return acc + t;
     }, 0);
 
-    // IMPORTANT: weighted avg by pairs
     const avgFailRate = totalPairs > 0 ? totalFailures / totalPairs : NaN;
 
     const worstByFailures = [...enriched].sort((a, b) => {
@@ -205,19 +202,29 @@ export default function ErrorAnalysis() {
           <>
             {kpis && (
               <div className="mt-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                <KpiCard title="Total failures" value={kpis.totalFailures} formatter={(v) => String(Math.round(v))} />
-                <KpiCard title="Avg failure rate" value={kpis.avgFailRate} formatter={(v) => pct01(v, 2)} />
+                <KpiCard
+                  title="Total failures"
+                  value={kpis.totalFailures}
+                  formatter={(v) => (Number.isFinite(v) ? String(Math.round(v)) : "—")}
+                />
+                <KpiCard
+                  title="Avg failure rate"
+                  value={kpis.avgFailRate}
+                  formatter={(v) => pct(Number(v), 2)}
+                />
                 <KpiCard
                   title="Worst by failures"
                   policy={kpis.worstByFailures?.symbol ?? "—"}
                   value={Number.isFinite(kpis.worstByFailures?.failures) ? (kpis.worstByFailures!.failures as number) : NaN}
-                  formatter={(v) => (Number.isFinite(v) ? `${Math.round(v)} failures` : "—")}
+                  formatter={(v) =>
+                    Number.isFinite(Number(v)) ? `${Math.round(Number(v))} failures` : "—"
+                  }   
                 />
                 <KpiCard
                   title="Worst by rate"
                   policy={kpis.worstByRate?.symbol ?? "—"}
                   value={kpis.worstByRate?.fail_rate ?? NaN}
-                  formatter={(v) => pct01(v, 2)}
+                  formatter={(v) => pct(Number(v), 2)}
                 />
               </div>
             )}
@@ -228,8 +235,8 @@ export default function ErrorAnalysis() {
                   <tr>
                     <th className="px-3 py-2 text-left">symbol</th>
                     <th className="px-3 py-2 text-right">failures</th>
-                    <th className="px-3 py-2 text-right">total</th>
-                    <th className="px-3 py-2 text-right">failure_rate</th>
+                    <th className="px-3 py-2 text-right">n_pairs</th>
+                    <th className="px-3 py-2 text-right">fail_rate</th>
                     <th className="px-3 py-2 text-right">Δeq vs buy&hold</th>
                     <th className="px-3 py-2 text-right">DD improve vs buy&hold</th>
                     <th className="px-3 py-2 text-right">Δeq vs avoid</th>
@@ -248,11 +255,11 @@ export default function ErrorAnalysis() {
                       </td>
 
                       <td className="px-3 py-2 text-right text-slate-300">
-                        {Number.isFinite(r.total) ? r.total : "—"}
+                        {Number.isFinite(r.n_pairs) ? r.n_pairs : "—"}
                       </td>
 
                       <td className="px-3 py-2 text-right text-slate-300">
-                        {pct01(r.fail_rate, 2)}
+                        {pct(r.fail_rate)}
                       </td>
 
                       <td className="px-3 py-2 text-right text-slate-300">
@@ -271,13 +278,18 @@ export default function ErrorAnalysis() {
                         {fmt(r.mean_dd_improve_vs_avoid)}
                       </td>
 
-                      <td className="px-3 py-2 text-slate-500">—</td>
+                      <td className="px-3 py-2 text-slate-400">
+                        {r.reason && r.reason.trim().length ? r.reason : "—"}
+                      </td>
                     </tr>
                   ))}
 
                   {!filtered.length && (
                     <tr>
-                      <td className="px-3 py-8 text-center text-slate-500" colSpan={9}>
+                      <td
+                        className="px-3 py-8 text-center text-slate-500"
+                        colSpan={9}
+                      >
                         No rows match your filter.
                       </td>
                     </tr>
