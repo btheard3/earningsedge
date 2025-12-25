@@ -9,6 +9,7 @@ from datetime import datetime
 from stable_baselines3 import PPO
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv
+from stable_baselines3.common.callbacks import CheckpointCallback
 
 from earningsedge_rl.training.make_env import make_env
 from earningsedge_rl.training.universe_split import split_universe, save_split, load_split
@@ -20,7 +21,7 @@ def main():
     parser.add_argument("--universe_path", default="data/processed/universe_top200.csv")
     parser.add_argument("--test_frac", type=float, default=0.2)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--total_timesteps", type=int, default=200_000)
+    parser.add_argument("--total_timesteps", type=int, default=1_000_000)
     parser.add_argument("--max_train", type=int, default=None)
     parser.add_argument("--max_test", type=int, default=None)
     parser.add_argument("--split_path", default=None, help="If provided, load split JSON instead of creating one.")
