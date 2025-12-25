@@ -10,6 +10,7 @@ type Row = {
   reason?: string;
   flags?: string;
   failure_flags?: string;
+  primary_flag?: string;
  
   mean_delta_eq_vs_buyhold: number;
   mean_dd_improve_vs_buyhold: number;
@@ -77,6 +78,7 @@ export default function ErrorAnalysis() {
             reason: r.reason ? String(r.reason) : "",
             flags: r.flags ? String(r.flags) : "",
             failure_flags: r.failure_flags ? String(r.failure_flags) : "",
+            primary_flag: r.primary_flag ? String(r.primary_flag) : "",
 
             mean_delta_eq_vs_buyhold: toNum(r.mean_delta_eq_vs_buyhold),
             mean_dd_improve_vs_buyhold: toNum(r.mean_dd_improve_vs_buyhold),
@@ -303,13 +305,32 @@ export default function ErrorAnalysis() {
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex flex-wrap gap-1">
-                        {(r.flagsArr?.length ? r.flagsArr : []).map((f) => (
-                        <span key={f} className="rounded-lg border border-slate-800 bg-slate-950/40 px-2 py-0.5 text-xs text-slate-300">{f}
-                        </span>
-                 ))}
-                        {!r.flagsArr?.length && <span className="text-slate-500">—</span>}
-                        </div>
-                      </td>
+                         {(() => {
+                          const flagsToShow =
+                            r.flagsArr?.length
+                             ? r.flagsArr
+                             : (Number.isFinite(r.failures) &&
+                                r.failures > 0 &&
+                                r.primary_flag)
+                                ? [r.primary_flag]
+                                : [];
+
+                     return flagsToShow.length ? (
+        flagsToShow.map((f) => (
+          <span
+            key={f}
+            className="rounded-lg border border-slate-800 bg-slate-950/40 px-2 py-0.5 text-xs text-slate-300"
+          >
+            {f}
+          </span>
+        ))
+      ) : (
+        <span className="text-slate-500">—</span>
+      );
+    })()}
+  </div>
+</td>
+
                     </tr>
                   ))}
 
