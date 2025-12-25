@@ -8,8 +8,9 @@ type Row = {
   fail_rate: number; // 0..1
   failures?: number; // <-- prefer integer if present
   reason?: string;
+  flags?: string;
   failure_flags?: string;
-
+ 
   mean_delta_eq_vs_buyhold: number;
   mean_dd_improve_vs_buyhold: number;
   mean_delta_eq_vs_avoid: number;
@@ -74,6 +75,7 @@ export default function ErrorAnalysis() {
             fail_rate: toNum(r.fail_rate),
             failures: r.failures !== undefined ? toNum(r.failures) : undefined,
             reason: r.reason ? String(r.reason) : "",
+            flags: r.flags ? String(r.flags) : "",
             failure_flags: r.failure_flags ? String(r.failure_flags) : "",
 
             mean_delta_eq_vs_buyhold: toNum(r.mean_delta_eq_vs_buyhold),
@@ -109,8 +111,8 @@ export default function ErrorAnalysis() {
             ? Math.round(fr * total)
             : NaN;
 
-      return { ...r, total, failures, flagsArr: parseFlags(r.failure_flags) };
-
+      const flagsRaw = (r.flags && r.flags.trim().length) ? r.flags : r.failure_flags;
+      return { ...r, total, failures, flagsArr: parseFlags(flagsRaw) };
     });
   }, [rows]);
 
