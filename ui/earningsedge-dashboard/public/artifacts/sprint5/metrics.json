@@ -1,0 +1,22 @@
+{
+  "ppo": {
+    "mean_final_equity": 1.0020825219365161,
+    "median_final_equity": 1.0506362253348915,
+    "mean_max_drawdown": 0.33457202170457145
+  },
+  "buy_hold": {
+    "mean_final_equity": 1.0213895618798756,
+    "median_final_equity": 1.0591748139155195,
+    "mean_max_drawdown": 0.36458290136930394
+  },
+  "flat": {
+    "mean_final_equity": 1.0,
+    "median_final_equity": 1.0,
+    "mean_max_drawdown": 0.0
+  },
+  "avoid_earnings": {
+    "mean_final_equity": 1.0044791932063524,
+    "median_final_equity": 1.107166403771597,
+    "mean_max_drawdown": 0.3303582456444487
+  }
+}

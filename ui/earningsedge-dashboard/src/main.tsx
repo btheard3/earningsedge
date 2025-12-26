@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import "./index.css";
+import { RunProvider } from "./state/run";
 
 import AppShell from "./app/AppShell";
 import Overview from "./pages/Overview";
@@ -24,7 +25,8 @@ const router = createBrowserRouter([
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <RouterProvider router={router} />
+    <RunProvider>
+      <RouterProvider router={router} />
+    </RunProvider>
   </React.StrictMode>
 );
-

@@ -1,0 +1,10 @@
+{
+  "timestamp": "2025-12-25T16:10:59.147179",
+  "total_timesteps": 1000000,
+  "elapsed_sec": 1792.43,
+  "seed": 42,
+  "model_path": "runs/sprint5_long_train/ppo_trading_env.zip",
+  "split_path": "runs/sprint5_long_train/universe_split.json",
+  "train_symbols_count": 160,
+  "test_symbols_count": 40
+}

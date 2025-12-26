@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { loadCSV } from "../utils/data";
 import KpiCard from "../components/KpiCard";
+import { useRun } from "../state/run";
 
 type SummaryRow = {
   policy: string;
@@ -11,8 +12,6 @@ type SummaryRow = {
   median_max_drawdown: number;
 };
 
-const SUMMARY_CSV = "/artifacts/sprint4/summary_table.csv";
-
 function fmt(x: unknown, digits = 4) {
   if (x === null || x === undefined) return "—";
   const n = typeof x === "number" ? x : Number(x);
@@ -21,6 +20,9 @@ function fmt(x: unknown, digits = 4) {
 }
 
 export default function PpoVsBaselines() {
+  const { basePath } = useRun();
+  const CSV_PATH = `${basePath}/summary_table.csv`;
+
   const [rows, setRows] = useState<SummaryRow[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -33,9 +35,8 @@ export default function PpoVsBaselines() {
         setLoading(true);
         setErr(null);
 
-        const data = await loadCSV<any>(SUMMARY_CSV);
+        const data = await loadCSV<any>(CSV_PATH);
 
-        // Coerce numeric fields in case PapaParse returns strings
         const cleaned: SummaryRow[] = (data ?? []).map((r: any) => ({
           policy: String(r.policy),
           n_episodes: Number(r.n_episodes),
@@ -56,15 +57,13 @@ export default function PpoVsBaselines() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [CSV_PATH]);
 
   const sorted = useMemo(() => {
-    // Match your CSV exactly: avoid_earnings (not avoid_earn)
     const order = ["ppo", "buy_hold", "avoid_earnings", "flat"];
     return [...rows].sort((a, b) => {
       const ai = order.indexOf(a.policy);
       const bi = order.indexOf(b.policy);
-      // unknown policies go to bottom
       return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
     });
   }, [rows]);
@@ -93,27 +92,26 @@ export default function PpoVsBaselines() {
   }, [rows]);
 
   const deltas = useMemo(() => {
-  if (!rows.length) return null;
+    if (!rows.length) return null;
 
-  const ppo = rows.find(r => r.policy === "ppo");
-  const bh = rows.find(r => r.policy === "buy_hold");
-  if (!ppo || !bh) return null;
+    const ppo = rows.find((r) => r.policy === "ppo");
+    const bh = rows.find((r) => r.policy === "buy_hold");
+    if (!ppo || !bh) return null;
 
-  return {
-    deltaMeanFinal: ppo.mean_final_equity - bh.mean_final_equity,
-    deltaMedianFinal: ppo.median_final_equity - bh.median_final_equity,
-    deltaMeanDD: ppo.mean_max_drawdown - bh.mean_max_drawdown,         // negative = PPO lower DD (good)
-    deltaMedianDD: ppo.median_max_drawdown - bh.median_max_drawdown,   // negative = PPO lower DD (good)
-  };
-}, [rows]);
-
+    return {
+      deltaMeanFinal: ppo.mean_final_equity - bh.mean_final_equity,
+      deltaMedianFinal: ppo.median_final_equity - bh.median_final_equity,
+      deltaMeanDD: ppo.mean_max_drawdown - bh.mean_max_drawdown,
+      deltaMedianDD: ppo.median_max_drawdown - bh.median_max_drawdown,
+    };
+  }, [rows]);
 
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-5">
         <div className="text-sm text-slate-300">PPO vs Baselines</div>
         <div className="text-xs text-slate-400 mt-1">
-          Loaded from <span className="font-mono">{SUMMARY_CSV}</span>
+          Loaded from <span className="font-mono">{CSV_PATH}</span>
         </div>
       </div>
 
@@ -124,65 +122,33 @@ export default function PpoVsBaselines() {
           </h2>
           <a
             className="text-xs text-slate-400 hover:text-slate-200 underline"
-            href={SUMMARY_CSV}
+            href={CSV_PATH}
           >
             download CSV
           </a>
         </div>
 
         {loading && <div className="mt-4 text-sm text-slate-400">Loading…</div>}
-
-        {err && (
-          <div className="mt-4 text-sm text-red-300">Could not load: {err}</div>
-        )}
+        {err && <div className="mt-4 text-sm text-red-300">Could not load: {err}</div>}
 
         {!loading && !err && (
           <>
-            {/* KPI cards */}
             {kpis && (
               <div className="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                <KpiCard
-                  title="Best Mean Final Equity"
-                  policy={kpis.bestMeanFinal.policy}
-                  value={kpis.bestMeanFinal.mean_final_equity}
-                />
-                <KpiCard
-                  title="Best Median Final Equity"
-                  policy={kpis.bestMedianFinal.policy}
-                  value={kpis.bestMedianFinal.median_final_equity}
-                />
-                <KpiCard
-                  title="Lowest Mean Max Drawdown"
-                  policy={kpis.lowestMeanDD.policy}
-                  value={kpis.lowestMeanDD.mean_max_drawdown}
-                  inverse
-                />
-                <KpiCard
-                  title="Lowest Median Max Drawdown"
-                  policy={kpis.lowestMedianDD.policy}
-                  value={kpis.lowestMedianDD.median_max_drawdown}
-                  inverse
-                />
+                <KpiCard title="Best Mean Final Equity" policy={kpis.bestMeanFinal.policy} value={kpis.bestMeanFinal.mean_final_equity} />
+                <KpiCard title="Best Median Final Equity" policy={kpis.bestMedianFinal.policy} value={kpis.bestMedianFinal.median_final_equity} />
+                <KpiCard title="Lowest Mean Max Drawdown" policy={kpis.lowestMeanDD.policy} value={kpis.lowestMeanDD.mean_max_drawdown} inverse />
+                <KpiCard title="Lowest Median Max Drawdown" policy={kpis.lowestMedianDD.policy} value={kpis.lowestMedianDD.median_max_drawdown} inverse />
               </div>
             )}
 
-            {/* Delta cards */}
             {deltas && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <DeltaCard
-                  title="PPO vs Buy&Hold (Mean Final Equity)"
-                  value={deltas.deltaMeanFinal}
-                  goodWhen="positive"
-                />
-                <DeltaCard
-                  title="PPO vs Buy&Hold (Mean Max Drawdown)"
-                  value={deltas.deltaMeanDD}
-                  goodWhen="negative"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 mt-4">
+                <DeltaCard title="PPO vs Buy&Hold (Mean Final Equity)" value={deltas.deltaMeanFinal} goodWhen="positive" />
+                <DeltaCard title="PPO vs Buy&Hold (Mean Max Drawdown)" value={deltas.deltaMeanDD} goodWhen="negative" />
               </div>
             )}
 
-            {/* Table */}
             <div className="mt-4 overflow-x-auto rounded-xl border border-slate-800">
               <table className="w-full text-sm">
                 <thead className="bg-slate-900/60 text-slate-300">
@@ -199,21 +165,11 @@ export default function PpoVsBaselines() {
                   {sorted.map((r) => (
                     <tr key={r.policy} className="border-t border-slate-800">
                       <td className="px-3 py-2 text-slate-200">{r.policy}</td>
-                      <td className="px-3 py-2 text-right text-slate-300">
-                        {Number.isFinite(r.n_episodes) ? r.n_episodes : "—"}
-                      </td>
-                      <td className="px-3 py-2 text-right text-slate-300">
-                        {fmt(r.mean_final_equity)}
-                      </td>
-                      <td className="px-3 py-2 text-right text-slate-300">
-                        {fmt(r.median_final_equity)}
-                      </td>
-                      <td className="px-3 py-2 text-right text-slate-300">
-                        {fmt(r.mean_max_drawdown)}
-                      </td>
-                      <td className="px-3 py-2 text-right text-slate-300">
-                        {fmt(r.median_max_drawdown)}
-                      </td>
+                      <td className="px-3 py-2 text-right text-slate-300">{Number.isFinite(r.n_episodes) ? r.n_episodes : "—"}</td>
+                      <td className="px-3 py-2 text-right text-slate-300">{fmt(r.mean_final_equity)}</td>
+                      <td className="px-3 py-2 text-right text-slate-300">{fmt(r.median_final_equity)}</td>
+                      <td className="px-3 py-2 text-right text-slate-300">{fmt(r.mean_max_drawdown)}</td>
+                      <td className="px-3 py-2 text-right text-slate-300">{fmt(r.median_max_drawdown)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -225,6 +181,7 @@ export default function PpoVsBaselines() {
     </div>
   );
 }
+
 function DeltaCard({
   title,
   value,

@@ -1,36 +1,33 @@
 import { useEffect, useMemo, useState } from "react";
 import { loadCSV } from "../utils/data";
 import KpiCard from "../components/KpiCard";
+import { useRun } from "../state/run";
 
 type Row = {
   symbol: string;
   n_pairs: number;
-  fail_rate: number; // 0..1
-  failures?: number; // <-- prefer integer if present
+  fail_rate: number;
+  failures?: number;
   reason?: string;
   flags?: string;
   failure_flags?: string;
   primary_flag?: string;
- 
+
   mean_delta_eq_vs_buyhold: number;
   mean_dd_improve_vs_buyhold: number;
   mean_delta_eq_vs_avoid: number;
   mean_dd_improve_vs_avoid: number;
 };
 
-const CSV_PATH = "/artifacts/sprint4/symbol_failure_summary.csv";
-
 function parseFlags(s?: string) {
   if (!s) return [];
-  // handle pipe format first
-  if (s.includes("|")) return s.split("|").map(x => x.trim()).filter(Boolean);
+  if (s.includes("|")) return s.split("|").map((x) => x.trim()).filter(Boolean);
 
-  // fallback: python list string like "['a', 'b']"
   return s
     .replace(/^\s*\[/, "")
     .replace(/\]\s*$/, "")
     .split(",")
-    .map(x => x.replace(/['"]/g, "").trim())
+    .map((x) => x.replace(/['"]/g, "").trim())
     .filter(Boolean);
 }
 
@@ -52,6 +49,9 @@ function fmt(x: number, digits = 4) {
 type SortKey = "failures_desc" | "fail_rate_desc" | "symbol_asc";
 
 export default function ErrorAnalysis() {
+  const { basePath } = useRun();
+  const CSV_PATH = `${basePath}/symbol_failure_summary.csv`;
+
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -98,33 +98,30 @@ export default function ErrorAnalysis() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [CSV_PATH]);
 
   const enriched = useMemo(() => {
     return rows.map((r) => {
       const total = Number.isFinite(r.n_pairs) ? r.n_pairs : NaN;
       const fr = Number.isFinite(r.fail_rate) ? r.fail_rate : NaN;
 
-      // Prefer integer failures if provided by notebook.
       const failures =
         r.failures !== undefined && Number.isFinite(r.failures)
           ? Math.round(r.failures)
           : Number.isFinite(total) && Number.isFinite(fr)
-            ? Math.round(fr * total)
-            : NaN;
+          ? Math.round(fr * total)
+          : NaN;
 
-      const flagsRaw = (r.flags && r.flags.trim().length) ? r.flags : r.failure_flags;
+      const flagsRaw = r.flags && r.flags.trim().length ? r.flags : r.failure_flags;
       return { ...r, total, failures, flagsArr: parseFlags(flagsRaw) };
     });
   }, [rows]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toUpperCase();
-    const base = q
-      ? enriched.filter((r) => r.symbol.toUpperCase().includes(q))
-      : enriched;
+    const base = q ? enriched.filter((r) => r.symbol.toUpperCase().includes(q)) : enriched;
 
-    const sorted = [...base].sort((a, b) => {
+    return [...base].sort((a, b) => {
       if (sort === "symbol_asc") return a.symbol.localeCompare(b.symbol);
 
       if (sort === "fail_rate_desc") {
@@ -133,41 +130,21 @@ export default function ErrorAnalysis() {
         return bv - av;
       }
 
-      // failures_desc
       const af = Number.isFinite(a.failures) ? a.failures : -Infinity;
       const bf = Number.isFinite(b.failures) ? b.failures : -Infinity;
       return bf - af;
     });
-
-    return sorted;
   }, [enriched, query, sort]);
 
   const kpis = useMemo(() => {
     if (!enriched.length) return null;
 
-    const totalFailures = enriched.reduce((acc, r) => {
-      const f = Number.isFinite(r.failures) ? r.failures : 0;
-      return acc + f;
-    }, 0);
-
-    const totalPairs = enriched.reduce((acc, r) => {
-      const t = Number.isFinite(r.total) ? r.total : 0;
-      return acc + t;
-    }, 0);
-
+    const totalFailures = enriched.reduce((acc, r) => acc + (Number.isFinite(r.failures) ? r.failures : 0), 0);
+    const totalPairs = enriched.reduce((acc, r) => acc + (Number.isFinite(r.total) ? r.total : 0), 0);
     const avgFailRate = totalPairs > 0 ? totalFailures / totalPairs : NaN;
 
-    const worstByFailures = [...enriched].sort((a, b) => {
-      const af = Number.isFinite(a.failures) ? a.failures : -Infinity;
-      const bf = Number.isFinite(b.failures) ? b.failures : -Infinity;
-      return bf - af;
-    })[0];
-
-    const worstByRate = [...enriched].sort((a, b) => {
-      const av = Number.isFinite(a.fail_rate) ? a.fail_rate : -Infinity;
-      const bv = Number.isFinite(b.fail_rate) ? b.fail_rate : -Infinity;
-      return bv - av;
-    })[0];
+    const worstByFailures = [...enriched].sort((a, b) => (Number(b.failures) || -Infinity) - (Number(a.failures) || -Infinity))[0];
+    const worstByRate = [...enriched].sort((a, b) => (Number(b.fail_rate) || -Infinity) - (Number(a.fail_rate) || -Infinity))[0];
 
     return { totalFailures, avgFailRate, worstByFailures, worstByRate };
   }, [enriched]);
@@ -183,9 +160,7 @@ export default function ErrorAnalysis() {
 
       <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-5">
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <h2 className="text-sm font-semibold text-slate-200">
-            Where episodes fail most
-          </h2>
+          <h2 className="text-sm font-semibold text-slate-200">Where episodes fail most</h2>
 
           <div className="flex items-center gap-3">
             <input
@@ -205,41 +180,26 @@ export default function ErrorAnalysis() {
               <option value="symbol_asc">Sort: Symbol (A→Z)</option>
             </select>
 
-            <a
-              className="text-xs text-slate-400 hover:text-slate-200 underline"
-              href={CSV_PATH}
-            >
+            <a className="text-xs text-slate-400 hover:text-slate-200 underline" href={CSV_PATH}>
               download CSV
             </a>
           </div>
         </div>
 
         {loading && <div className="mt-4 text-sm text-slate-400">Loading…</div>}
-        {err && (
-          <div className="mt-4 text-sm text-red-300">Could not load: {err}</div>
-        )}
+        {err && <div className="mt-4 text-sm text-red-300">Could not load: {err}</div>}
 
         {!loading && !err && (
           <>
             {kpis && (
               <div className="mt-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                <KpiCard
-                  title="Total failures"
-                  value={kpis.totalFailures}
-                  formatter={(v) => (Number.isFinite(v) ? String(Math.round(v)) : "—")}
-                />
-                <KpiCard
-                  title="Avg failure rate"
-                  value={kpis.avgFailRate}
-                  formatter={(v) => pct(Number(v), 2)}
-                />
+                <KpiCard title="Total failures" value={kpis.totalFailures} formatter={(v) => (Number.isFinite(v) ? String(Math.round(v)) : "—")} />
+                <KpiCard title="Avg failure rate" value={kpis.avgFailRate} formatter={(v) => pct(Number(v), 2)} />
                 <KpiCard
                   title="Worst by failures"
                   policy={kpis.worstByFailures?.symbol ?? "—"}
                   value={Number.isFinite(kpis.worstByFailures?.failures) ? (kpis.worstByFailures!.failures as number) : NaN}
-                  formatter={(v) =>
-                    Number.isFinite(Number(v)) ? `${Math.round(Number(v))} failures` : "—"
-                  }   
+                  formatter={(v) => (Number.isFinite(Number(v)) ? `${Math.round(Number(v))} failures` : "—")}
                 />
                 <KpiCard
                   title="Worst by rate"
@@ -271,75 +231,46 @@ export default function ErrorAnalysis() {
                   {filtered.map((r) => (
                     <tr key={r.symbol} className="border-t border-slate-800">
                       <td className="px-3 py-2 text-slate-200">{r.symbol}</td>
+                      <td className="px-3 py-2 text-right text-slate-300">{Number.isFinite(r.failures) ? r.failures : "—"}</td>
+                      <td className="px-3 py-2 text-right text-slate-300">{Number.isFinite(r.n_pairs) ? r.n_pairs : "—"}</td>
+                      <td className="px-3 py-2 text-right text-slate-300">{pct(r.fail_rate)}</td>
+                      <td className="px-3 py-2 text-right text-slate-300">{fmt(r.mean_delta_eq_vs_buyhold)}</td>
+                      <td className="px-3 py-2 text-right text-slate-300">{fmt(r.mean_dd_improve_vs_buyhold)}</td>
+                      <td className="px-3 py-2 text-right text-slate-300">{fmt(r.mean_delta_eq_vs_avoid)}</td>
+                      <td className="px-3 py-2 text-right text-slate-300">{fmt(r.mean_dd_improve_vs_avoid)}</td>
+                      <td className="px-3 py-2 text-slate-400">{r.reason && r.reason.trim().length ? r.reason : "—"}</td>
 
-                      <td className="px-3 py-2 text-right text-slate-300">
-                        {Number.isFinite(r.failures) ? r.failures : "—"}
-                      </td>
-
-                      <td className="px-3 py-2 text-right text-slate-300">
-                        {Number.isFinite(r.n_pairs) ? r.n_pairs : "—"}
-                      </td>
-
-                      <td className="px-3 py-2 text-right text-slate-300">
-                        {pct(r.fail_rate)}
-                      </td>
-
-                      <td className="px-3 py-2 text-right text-slate-300">
-                        {fmt(r.mean_delta_eq_vs_buyhold)}
-                      </td>
-
-                      <td className="px-3 py-2 text-right text-slate-300">
-                        {fmt(r.mean_dd_improve_vs_buyhold)}
-                      </td>
-
-                      <td className="px-3 py-2 text-right text-slate-300">
-                        {fmt(r.mean_delta_eq_vs_avoid)}
-                      </td>
-
-                      <td className="px-3 py-2 text-right text-slate-300">
-                        {fmt(r.mean_dd_improve_vs_avoid)}
-                      </td>
-
-                      <td className="px-3 py-2 text-slate-400">
-                        {r.reason && r.reason.trim().length ? r.reason : "—"}
-                      </td>
                       <td className="px-3 py-2">
                         <div className="flex flex-wrap gap-1">
-                         {(() => {
-                          const flagsToShow =
-                            r.flagsArr?.length
-                             ? r.flagsArr
-                             : (Number.isFinite(r.failures) &&
-                                r.failures > 0 &&
-                                r.primary_flag)
+                          {(() => {
+                            const flagsToShow =
+                              r.flagsArr?.length
+                                ? r.flagsArr
+                                : Number.isFinite(r.failures) && r.failures > 0 && r.primary_flag
                                 ? [r.primary_flag]
                                 : [];
 
-                     return flagsToShow.length ? (
-        flagsToShow.map((f) => (
-          <span
-            key={f}
-            className="rounded-lg border border-slate-800 bg-slate-950/40 px-2 py-0.5 text-xs text-slate-300"
-          >
-            {f}
-          </span>
-        ))
-      ) : (
-        <span className="text-slate-500">—</span>
-      );
-    })()}
-  </div>
-</td>
-
+                            return flagsToShow.length ? (
+                              flagsToShow.map((f: string) => (
+                                <span
+                                  key={f}
+                                  className="rounded-lg border border-slate-800 bg-slate-950/40 px-2 py-0.5 text-xs text-slate-300"
+                                >
+                                  {f}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-slate-500">—</span>
+                            );
+                          })()}
+                        </div>
+                      </td>
                     </tr>
                   ))}
 
                   {!filtered.length && (
                     <tr>
-                      <td
-                        className="px-3 py-8 text-center text-slate-500"
-                        colSpan={10}
-                      >
+                      <td className="px-3 py-8 text-center text-slate-500" colSpan={10}>
                         No rows match your filter.
                       </td>
                     </tr>
