@@ -1,4 +1,4 @@
-# EarningsEdge RL (v1)
+# EarningsEdge (v1)
 
 Reinforcement learning project that trains an agent to dynamically control equity exposure around earnings-event risk using daily OHLCV + earnings dates.
 
