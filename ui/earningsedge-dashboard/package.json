@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+
+    "publish:artifacts": "python ../../scripts/build_eval_csvs.py && python ../../scripts/export_ui_artifacts.py",
+    "dev:ready": "npm run publish:artifacts && vite"
   },
   "dependencies": {
     "lucide-react": "^0.562.0",
